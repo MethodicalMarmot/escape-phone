@@ -95,17 +95,9 @@ void processValue(int hookValue, int sameValueMs) {
   }
 }
 
-String stateString(int type) {
-  switch (type) {
-    case ON_HOOK: return "ON_HOOK";
-    case OFF_HOOK: return "OFF_HOOK";
-    case DIALLING: return "DIALLING";
-    case CONNECTED: return "CONNECTED";
-  }
-}
-
 void processDigit(int index, int digit, char* number) {
-  number[index] = (digit < 10 ? digit : 0) | '0';
+  digit = digit < 10 ? digit : 0;
+  number[index] = digit | '0';
   Serial.println("!!!! " + String(digit));
 
   switch (digit) {
@@ -122,6 +114,23 @@ void processDigit(int index, int digit, char* number) {
   }
 }
 
+void loop() {
+  delay(1);
+  int hookValue = readInput();
+  readIndex = hookValue == prevReading ? readIndex + 1 : 0;
+  prevReading = hookValue;
+  processValue(hookValue, readIndex);
+}
+
+String stateString(int type) {
+  switch (type) {
+    case ON_HOOK: return "ON_HOOK";
+    case OFF_HOOK: return "OFF_HOOK";
+    case DIALLING: return "DIALLING";
+    case CONNECTED: return "CONNECTED";
+  }
+}
+
 void playback(char* filename) {
   tmrpcm.play(filename);
   while (tmrpcm.isPlaying()) {
@@ -133,12 +142,4 @@ void playback(char* filename) {
 int readInput() {
   int analog = analogRead(inputPin);
   return map(analog, 1, 1020, 1, 5);
-}
-
-void loop() {
-  delay(1);
-  int hookValue = readInput();
-  readIndex = hookValue == prevReading ? readIndex + 1 : 0;
-  prevReading = hookValue;
-  processValue(hookValue, readIndex);
 }
