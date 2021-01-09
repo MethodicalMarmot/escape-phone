@@ -7,14 +7,15 @@ const int toneFrequency = 600;
 
 const byte inputPin = A0;
 const byte phonePin = 9;
-const int triggerReadings = 50;         //ms
-const int diallingReadings = 10;        //ms
+const int hookTimeout = 100;         //ms
+const int pulseTimeout = 70;        //ms
+const int digitTimeout = 300;        //ms
 
 const byte SD_ChipSelectPin = 4;
 TMRpcm tmrpcm;
 
-int prevReading = 0;
-int readIndex = 0;
+int prevValue = 0;
+int valueDuration = 0;
 char number[numDigitsInPhoneNumber + 1];
 int currentDigit = 0;
 int digitIndex = 0;
@@ -40,48 +41,60 @@ void setup() {
   tmrpcm.loop(0);
   tmrpcm.quality(1);
   
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("INIT");
 }
 
-void processValue(int hookValue, int sameValueMs) {    
-  //Serial.println("hookValue: " + String(hookValue) + "; state: " + stateString(state) + "; sameValueMs: " + String(sameValueMs));
+void loop() {
+  delay(1);
+  int currentValue = readInput();
+  int prevValueDuration = valueDuration;
+  valueDuration = currentValue == prevValue ? valueDuration + 1 : 0;
+
+  processValue(currentValue, valueDuration, prevValue, prevValueDuration);
+  prevValue = currentValue;
+}
+
+void processValue(int currentValue, int valueDuration, int prevValue, int prevValueDuration) {
+  if ((state == OFF_HOOK && currentValue == 5) || (prevValue == 5 && currentValue < 5)) {
+    Serial.println("currentValue: " + String(currentValue)
+      + "; state: " + stateString(state) 
+      + "; valueDuration: " + String(valueDuration)
+      + "; prevValue: " + String(prevValue)
+      + "; prevValueDuration: " + String(prevValueDuration)
+    );
+  }
+
 // phone state changes
   // ON_HOOK => OFF_HOOK
-  if (sameValueMs >= triggerReadings && hookValue > 1 && hookValue < 5 && state == ON_HOOK) {
+  if (valueDuration >= hookTimeout && currentValue < 5 && state == ON_HOOK) {
     state = OFF_HOOK;
     Serial.println("OFF_HOOK");
     tone(phonePin, toneFrequency);
-    isPulse = false;
     currentDigit = 0;
     digitIndex = 0;
   }
   // OFF_HOOK => DIALLING
-  else if (sameValueMs >= triggerReadings && hookValue == 1 && state == OFF_HOOK) {
+  else if (prevValueDuration == pulseTimeout && currentValue == 1 && /*prevValue == 5 && currentValue < 5 &&*/ state == OFF_HOOK) {
     state = DIALLING;
     Serial.println("DIALLING");
     noTone(phonePin);
   }
   // ??? => ON_HOOK
-  else if (hookValue > 4 && (state == OFF_HOOK || (state == DIALLING && sameValueMs >= triggerReadings))) {
+  else if (valueDuration >= hookTimeout && currentValue == 5 && state != ON_HOOK) {
     state = ON_HOOK;
     Serial.println("ON_HOOK");
     noTone(phonePin);
   }
 
 // DIALLING state processing
-  if (state == DIALLING && sameValueMs >= diallingReadings) {
-    // pulse is in progress
-    if (hookValue == 5) {
-      isPulse = true;
-    }
+  if (state == DIALLING) {
     // pulse is fading out
-    else if (hookValue < 5 && isPulse) {
-      isPulse = false;
+    if (prevValueDuration <= pulseTimeout && currentValue < 5 && prevValue == 5) {
       currentDigit++;
     }
     // some digit dialled
-    else if (sameValueMs > triggerReadings && currentDigit > 0) {
+    else if (valueDuration > digitTimeout && currentDigit > 0) {
       processDigit(digitIndex, currentDigit, number);
       currentDigit = 0;
       digitIndex++;
@@ -112,14 +125,6 @@ void processDigit(int index, int digit, char* number) {
     case 8: return playback("008.wav");
     case 9: return playback("009.wav");
   }
-}
-
-void loop() {
-  delay(1);
-  int hookValue = readInput();
-  readIndex = hookValue == prevReading ? readIndex + 1 : 0;
-  prevReading = hookValue;
-  processValue(hookValue, readIndex);
 }
 
 String stateString(int type) {
