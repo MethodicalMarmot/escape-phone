@@ -19,14 +19,14 @@ const int locked = invert(unlocked);
 
 // keypad setup
 const byte ROWS = 4;
-const byte COLS = 3;
-const byte rowPins[ROWS] = {6, 7, 8, 9}; 
-const byte colPins[COLS] = {5 ,4 ,3};
+const byte COLS = 4;
+const byte rowPins[ROWS] = {7, 8, 9, 10};
+const byte colPins[COLS] = {6, 5 ,4 ,3};
 const char hexaKeys[ROWS][COLS] = {
-  {'1', '2', '3'},
-  {'4', '5', '6'},
-  {'7', '8', '9'},
-  {'*', '0', '#'}
+  {'1', '2', '3', 'x'},
+  {'4', '5', '6', 'y'},
+  {'7', '8', '9', 'z'},
+  {'*', '0', '#', 'i'}
 };
 
 
