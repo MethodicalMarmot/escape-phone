@@ -1,5 +1,8 @@
 #define invert(value) value == LOW ? HIGH : LOW
 #include <Keypad.h>
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
 
 // quest setup
 const char* unlockNumber = "12345";
@@ -18,17 +21,31 @@ const int unlocked = HIGH;
 const int locked = invert(unlocked);
 
 // keypad setup
+//const byte ROWS = 4;
+//const byte COLS = 4;
+//const byte rowPins[ROWS] = {7, 8, 9, 10};
+//const byte colPins[COLS] = {6, 5 ,4 ,3};
+//const char hexaKeys[ROWS][COLS] = {
+//  {'1', '2', '3', 'x'},
+//  {'4', '5', '6', 'y'},
+//  {'7', '8', '9', 'z'},
+//  {'*', '0', '#', 'i'}
+//};
+
 const byte ROWS = 4;
-const byte COLS = 4;
-const byte rowPins[ROWS] = {7, 8, 9, 10};
-const byte colPins[COLS] = {6, 5 ,4 ,3};
+const byte COLS = 3;
+const byte rowPins[ROWS] = {6, 7, 8, 9};
+const byte colPins[COLS] = {5 ,4 ,3};
 const char hexaKeys[ROWS][COLS] = {
-  {'1', '2', '3', 'x'},
-  {'4', '5', '6', 'y'},
-  {'7', '8', '9', 'z'},
-  {'*', '0', '#', 'i'}
+  {'1', '2', '3'},
+  {'4', '5', '6'},
+  {'7', '8', '9'},
+  {'*', '0', '#'}
 };
 
+// dfmini setup
+SoftwareSerial mySoftwareSerial(12, 11); // RX, TX
+DFRobotDFPlayerMini myDFPlayer;
 
 typedef enum { ON_HOOK, OFF_HOOK, DIALLING, UNLOCK } stateType;
 stateType state = ON_HOOK;
@@ -42,9 +59,25 @@ int lastHookState = -1;
 Keypad digitpad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
 
 void setup() {
+  Serial.begin(9600);
+
+  mySoftwareSerial.begin(9600);
+  if (!myDFPlayer.begin(mySoftwareSerial)) {
+    Serial.println("Unable to begin:");
+    Serial.println("1.Please recheck the connection!");
+    Serial.println("2.Please insert the SD card!");
+    while(true);
+  }
+  Serial.println("DFPlayer online");
+
+  myDFPlayer.setTimeOut(500); //Set serial communictaion time out 500ms
+
+  myDFPlayer.volume(30);
+  myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
+  myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+  
   pinMode(hookPin, INPUT_PULLUP);
   pinMode(lockPin, OUTPUT);
-  Serial.begin(9600);
 }
 
 
@@ -61,7 +94,8 @@ void loop() {
       changeState(OFF_HOOK);
       digitalWrite(lockPin, locked);
       digitIndex = 0;
-      playback("beep.wav");
+      myDFPlayer.volume(10);
+      playback(11);
     }
     else {
       changeState(ON_HOOK);
@@ -72,20 +106,21 @@ void loop() {
   if (state == OFF_HOOK && digit) {
     changeState(DIALLING);
     stopPlayback();
+    myDFPlayer.volume(30);
   }
 
   if (state == DIALLING && digit) {
     switch (digit) {
-      case 0: return playback("000.wav");
-      case 1: return playback("001.wav");
-      case 2: return playback("002.wav");
-      case 3: return playback("003.wav");
-      case 4: return playback("004.wav");
-      case 5: return playback("005.wav");
-      case 6: return playback("006.wav");
-      case 7: return playback("007.wav");
-      case 8: return playback("008.wav");
-      case 9: return playback("009.wav");
+      case '0': playback(0); break;
+      case '1': playback(1); break;
+      case '2': playback(2); break;
+      case '3': playback(3); break;
+      case '4': playback(4); break;
+      case '5': playback(5); break;
+      case '6': playback(6); break;
+      case '7': playback(7); break;
+      case '8': playback(8); break;
+      case '9': playback(9); break;
     }
 
     number[digitIndex] = digit;
@@ -103,10 +138,11 @@ void changeState(stateType newState) {
 }
 
 void processNumber(char* number) {
+  waitTillStop();
   if (strcmp(number, unlockNumber) == 0) {
     changeState(UNLOCK);
     digitalWrite(lockPin, unlocked);
-    playback("unlock.wav");
+    playback(10);
     Serial.println("!!!!UNLOCK");
   } else {
     changeState(ON_HOOK);
@@ -114,10 +150,22 @@ void processNumber(char* number) {
   }
 }
 
-void playback(char* filename) {
-  //TODO
+void playback(int filename) {
+  Serial.println("Playback: " + String(filename));
+  myDFPlayer.playMp3Folder(filename);
+  delay(50);
 }
 
 void stopPlayback() {
-  //TODO
+  myDFPlayer.pause();
+  delay(50);
+}
+
+void waitTillStop() {
+  int ttl = 5000;
+  int step = 50;
+  while (myDFPlayer.readState() != 512 && ttl > 0) {
+    ttl -= step;
+    delay(step);
+  }
 }
