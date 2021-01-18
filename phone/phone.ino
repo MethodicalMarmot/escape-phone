@@ -7,6 +7,10 @@
 // quest setup
 const char* unlockNumber = "12345";
 const int numDigitsInPhoneNumber = 5;
+const int successFilename = 10;
+const int beepFilename = 11;
+const int beepVolume = 10;
+const int messageVolume = 30;
 
 // pins setup
 const byte hookPin = 2;
@@ -21,27 +25,27 @@ const int unlocked = HIGH;
 const int locked = invert(unlocked);
 
 // keypad setup
-//const byte ROWS = 4;
-//const byte COLS = 4;
-//const byte rowPins[ROWS] = {7, 8, 9, 10};
-//const byte colPins[COLS] = {6, 5 ,4 ,3};
-//const char hexaKeys[ROWS][COLS] = {
-//  {'1', '2', '3', 'x'},
-//  {'4', '5', '6', 'y'},
-//  {'7', '8', '9', 'z'},
-//  {'*', '0', '#', 'i'}
-//};
-
 const byte ROWS = 4;
-const byte COLS = 3;
-const byte rowPins[ROWS] = {6, 7, 8, 9};
-const byte colPins[COLS] = {5 ,4 ,3};
+const byte COLS = 4;
+const byte rowPins[ROWS] = {7, 8, 9, 10};
+const byte colPins[COLS] = {6, 5 ,4 ,3};
 const char hexaKeys[ROWS][COLS] = {
-  {'1', '2', '3'},
-  {'4', '5', '6'},
-  {'7', '8', '9'},
-  {'*', '0', '#'}
+  {'1', '2', '3', 'x'},
+  {'4', '5', '6', 'y'},
+  {'7', '8', '9', 'z'},
+  {'*', '0', '#', 'i'}
 };
+
+//const byte ROWS = 4;
+//const byte COLS = 3;
+//const byte rowPins[ROWS] = {6, 7, 8, 9};
+//const byte colPins[COLS] = {5 ,4 ,3};
+//const char hexaKeys[ROWS][COLS] = {
+//  {'1', '2', '3'},
+//  {'4', '5', '6'},
+//  {'7', '8', '9'},
+//  {'*', '0', '#'}
+//};
 
 // dfmini setup
 SoftwareSerial mySoftwareSerial(12, 11); // RX, TX
@@ -72,7 +76,6 @@ void setup() {
 
   myDFPlayer.setTimeOut(500); //Set serial communictaion time out 500ms
 
-  myDFPlayer.volume(30);
   myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
   myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
   
@@ -94,8 +97,8 @@ void loop() {
       changeState(OFF_HOOK);
       digitalWrite(lockPin, locked);
       digitIndex = 0;
-      myDFPlayer.volume(10);
-      playback(11);
+      myDFPlayer.volume(beepVolume);
+      playback(beepFilename);
     }
     else {
       changeState(ON_HOOK);
@@ -106,7 +109,7 @@ void loop() {
   if (state == OFF_HOOK && digit) {
     changeState(DIALLING);
     stopPlayback();
-    myDFPlayer.volume(30);
+    myDFPlayer.volume(messageVolume);
   }
 
   if (state == DIALLING && digit) {
@@ -142,8 +145,8 @@ void processNumber(char* number) {
   if (strcmp(number, unlockNumber) == 0) {
     changeState(UNLOCK);
     digitalWrite(lockPin, unlocked);
-    playback(10);
-    Serial.println("!!!!UNLOCK");
+    playback(successFilename);
+    Serial.println("!!!!UNLOCKED");
   } else {
     changeState(ON_HOOK);
     lastHookState = invert(lastHookState);
@@ -153,17 +156,17 @@ void processNumber(char* number) {
 void playback(int filename) {
   Serial.println("Playback: " + String(filename));
   myDFPlayer.playMp3Folder(filename);
-  delay(50);
+  delay(debounceTimeout);
 }
 
 void stopPlayback() {
   myDFPlayer.pause();
-  delay(50);
+  delay(debounceTimeout);
 }
 
 void waitTillStop() {
   int ttl = 5000;
-  int step = 50;
+  int step = debounceTimeout;
   while (myDFPlayer.readState() != 512 && ttl > 0) {
     ttl -= step;
     delay(step);
