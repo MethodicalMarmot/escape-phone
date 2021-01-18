@@ -1,150 +1,123 @@
-#include <SD.h>
-#include <TMRpcm.h>
+#define invert(value) value == LOW ? HIGH : LOW
+#include <Keypad.h>
 
+// quest setup
 const char* unlockNumber = "12345";
 const int numDigitsInPhoneNumber = 5;
-const int toneFrequency = 600;
 
-const byte inputPin = A0;
-const byte phonePin = 9;
-const int hookTimeout = 100;         //ms
-const int pulseTimeout = 70;        //ms
-const int digitTimeout = 300;        //ms
+// pins setup
+const byte hookPin = 2;
+const byte lockPin = 13;
 
-const byte SD_ChipSelectPin = 4;
-TMRpcm tmrpcm;
+// hook setup
+const int offHookValue = LOW;
+const int debounceTimeout = 50;
 
-int prevValue = 0;
-int valueDuration = 0;
-char number[numDigitsInPhoneNumber + 1];
-int currentDigit = 0;
-int digitIndex = 0;
-boolean isPulse = false;
+// lock setup
+const int unlocked = HIGH;
+const int locked = invert(unlocked);
 
-typedef enum { ON_HOOK, OFF_HOOK, DIALLING, CONNECTED } stateType;
+// keypad setup
+const byte ROWS = 4;
+const byte COLS = 3;
+const byte rowPins[ROWS] = {6, 7, 8, 9}; 
+const byte colPins[COLS] = {5 ,4 ,3};
+const char hexaKeys[ROWS][COLS] = {
+  {'1', '2', '3'},
+  {'4', '5', '6'},
+  {'7', '8', '9'},
+  {'*', '0', '#'}
+};
+
+
+typedef enum { ON_HOOK, OFF_HOOK, DIALLING, UNLOCK } stateType;
 stateType state = ON_HOOK;
+
+char number[numDigitsInPhoneNumber + 1];
+int digitIndex = 0;
+
+long prevHookMillis = millis();
+int lastHookState = -1;
+
+Keypad digitpad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
+
+void setup() {
+  pinMode(hookPin, INPUT_PULLUP);
+  pinMode(lockPin, OUTPUT);
+  Serial.begin(9600);
+}
+
+
+void loop() {
+  unsigned long currentMillis = millis();
+  char digit = digitpad.getKey();
+  int currentHook = currentMillis - prevHookMillis > debounceTimeout ? digitalRead(hookPin) : lastHookState;
+
+  if (currentHook != lastHookState) {
+    prevHookMillis = currentMillis;
+    lastHookState = currentHook;
+
+    if (currentHook == offHookValue) {
+      changeState(OFF_HOOK);
+      digitalWrite(lockPin, locked);
+      digitIndex = 0;
+      playback("beep.wav");
+    }
+    else {
+      changeState(ON_HOOK);
+      stopPlayback();
+    }
+  }
+  
+  if (state == OFF_HOOK && digit) {
+    changeState(DIALLING);
+    stopPlayback();
+  }
+
+  if (state == DIALLING && digit) {
+    switch (digit) {
+      case 0: return playback("000.wav");
+      case 1: return playback("001.wav");
+      case 2: return playback("002.wav");
+      case 3: return playback("003.wav");
+      case 4: return playback("004.wav");
+      case 5: return playback("005.wav");
+      case 6: return playback("006.wav");
+      case 7: return playback("007.wav");
+      case 8: return playback("008.wav");
+      case 9: return playback("009.wav");
+    }
+
+    number[digitIndex] = digit;
+    digitIndex++;
+  }
+
+  if (state == DIALLING && digitIndex == numDigitsInPhoneNumber) {
+    processNumber(number);
+  }
+}
+
+void changeState(stateType newState) {
+  state = newState;
+  Serial.println("State: " + String(state));
+}
 
 void processNumber(char* number) {
   if (strcmp(number, unlockNumber) == 0) {
+    changeState(UNLOCK);
+    digitalWrite(lockPin, unlocked);
+    playback("unlock.wav");
     Serial.println("!!!!UNLOCK");
-    playback("010.wav");
-  }
-}
-
-void setup() {
-  if (!SD.begin(SD_ChipSelectPin)) {
-    return;
-  }
-
-  tmrpcm.speakerPin = phonePin;
-  tmrpcm.setVolume(7);
-  tmrpcm.loop(0);
-  tmrpcm.quality(1);
-  
-  Serial.begin(115200);
-  Serial.println("INIT");
-}
-
-void loop() {
-  delay(1);
-  int currentValue = readInput();
-  int prevValueDuration = valueDuration;
-  valueDuration = currentValue == prevValue ? valueDuration + 1 : 0;
-
-  processValue(currentValue, valueDuration, prevValue, prevValueDuration);
-  prevValue = currentValue;
-}
-
-void processValue(int currentValue, int valueDuration, int prevValue, int prevValueDuration) {
-  if ((state == OFF_HOOK && currentValue == 5) || (prevValue == 5 && currentValue < 5)) {
-    Serial.println("currentValue: " + String(currentValue)
-      + "; state: " + stateString(state) 
-      + "; valueDuration: " + String(valueDuration)
-      + "; prevValue: " + String(prevValue)
-      + "; prevValueDuration: " + String(prevValueDuration)
-    );
-  }
-
-// phone state changes
-  // ON_HOOK => OFF_HOOK
-  if (valueDuration >= hookTimeout && currentValue < 5 && state == ON_HOOK) {
-    state = OFF_HOOK;
-    Serial.println("OFF_HOOK");
-    tone(phonePin, toneFrequency);
-    currentDigit = 0;
-    digitIndex = 0;
-  }
-  // OFF_HOOK => DIALLING
-  else if (prevValueDuration == pulseTimeout && currentValue == 1 && /*prevValue == 5 && currentValue < 5 &&*/ state == OFF_HOOK) {
-    state = DIALLING;
-    Serial.println("DIALLING");
-    noTone(phonePin);
-  }
-  // ??? => ON_HOOK
-  else if (valueDuration >= hookTimeout && currentValue == 5 && state != ON_HOOK) {
-    state = ON_HOOK;
-    Serial.println("ON_HOOK");
-    noTone(phonePin);
-  }
-
-// DIALLING state processing
-  if (state == DIALLING) {
-    // pulse is fading out
-    if (prevValueDuration <= pulseTimeout && currentValue < 5 && prevValue == 5) {
-      currentDigit++;
-    }
-    // some digit dialled
-    else if (valueDuration > digitTimeout && currentDigit > 0) {
-      processDigit(digitIndex, currentDigit, number);
-      currentDigit = 0;
-      digitIndex++;
-    }
-
-    // number is dialled
-    if (digitIndex == numDigitsInPhoneNumber) {
-      processNumber(number);
-      state = ON_HOOK;
-    }
-  }
-}
-
-void processDigit(int index, int digit, char* number) {
-  digit = digit < 10 ? digit : 0;
-  number[index] = digit | '0';
-  Serial.println("!!!! " + String(digit));
-
-  switch (digit) {
-    case 0: return playback("000.wav");
-    case 1: return playback("001.wav");
-    case 2: return playback("002.wav");
-    case 3: return playback("003.wav");
-    case 4: return playback("004.wav");
-    case 5: return playback("005.wav");
-    case 6: return playback("006.wav");
-    case 7: return playback("007.wav");
-    case 8: return playback("008.wav");
-    case 9: return playback("009.wav");
-  }
-}
-
-String stateString(int type) {
-  switch (type) {
-    case ON_HOOK: return "ON_HOOK";
-    case OFF_HOOK: return "OFF_HOOK";
-    case DIALLING: return "DIALLING";
-    case CONNECTED: return "CONNECTED";
+  } else {
+    changeState(ON_HOOK);
+    lastHookState = invert(lastHookState);
   }
 }
 
 void playback(char* filename) {
-  tmrpcm.play(filename);
-  while (tmrpcm.isPlaying()) {
-    delay(50);
-  }
-  tmrpcm.disable();
+  //TODO
 }
 
-int readInput() {
-  int analog = analogRead(inputPin);
-  return map(analog, 1, 1020, 1, 5);
+void stopPlayback() {
+  //TODO
 }
