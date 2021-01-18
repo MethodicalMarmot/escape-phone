@@ -6,6 +6,7 @@
 
 // quest setup
 const char* unlockNumber = "12345";
+const int numDigitsInPhoneNumber = 5;
 const int successFilename = 10;
 const int beepFilename = 11;
 const int beepVolume = 10;
@@ -45,8 +46,6 @@ const char hexaKeys[ROWS][COLS] = {
 //  {'7', '8', '9'},
 //  {'*', '0', '#'}
 //};
-
-const int numDigitsInPhoneNumber = (int) strlen(unlockNumber);
 
 // dfmini setup
 SoftwareSerial mySoftwareSerial(12, 11); // RX, TX
