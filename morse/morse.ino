@@ -1,5 +1,3 @@
-#include "pitches.h"
-
 // settings
 const int debounceTimeout = 10;
 const int enableLevel = LOW;
