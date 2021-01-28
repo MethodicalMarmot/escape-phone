@@ -53,6 +53,8 @@ const int buzzer = 10;
 
 const int globalEnable = 11;
 
+const int isEnabledPin = 12;
+
 #define NOTE_B0  31
 #define NOTE_C1  33
 #define NOTE_CS1 35
@@ -196,7 +198,9 @@ void setup() {
   pinMode(buzzer, OUTPUT);
 
   pinMode(globalEnable, INPUT_PULLUP);
-
+  pinMode(isEnabledPin, OUTPUT);
+  
+  digitalWrite(isEnabledPin, LOW);
   pushData(B00000000, B00000000, B00000000);
 
   strippedMessage.replace(" ", "");
@@ -217,6 +221,7 @@ void loop() {
     resetMorseBeep();
     pushData(0, 0, 0);
     isEnabled = false;
+    digitalWrite(isEnabledPin, LOW);
     
     delay(100);
     return;
@@ -232,6 +237,7 @@ void loop() {
       noTone(buzzer);
     }
     isEnabled = true;
+    digitalWrite(isEnabledPin, HIGH);
     
     delay(morseFailedDelay);
   }
