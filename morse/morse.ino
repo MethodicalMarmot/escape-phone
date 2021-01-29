@@ -1,7 +1,7 @@
 // settings
 const int debounceTimeout = 10;
 const int enableLevel = LOW;
-const int morseFailedDelay = 2000;
+const int morseFailedDelay = 1000;
 const int morseTone = 450;
 const int morseDotDuration = 100;
 const int morseDashDuration = 3 * morseDotDuration;
@@ -201,7 +201,7 @@ void setup() {
   pinMode(isEnabledPin, OUTPUT);
   
   digitalWrite(isEnabledPin, LOW);
-  pushData(B00000000, B00000000, B00000000);
+  resetMorseBeep();
 
   strippedMessage.replace(" ", "");
 
@@ -217,7 +217,7 @@ unsigned long prevBeep = millis();
 int nextCharIdx = 0;
 boolean isEnabled = false;
 void loop() {
-  if (digitalRead(globalEnable) != enableLevel) {
+  if (isEnabled && digitalRead(globalEnable) != enableLevel) {
     resetMorseBeep();
     pushData(0, 0, 0);
     isEnabled = false;
@@ -229,17 +229,17 @@ void loop() {
 
   if (!isEnabled) {
     //play music
-    for (int thisNote = 0; thisNote < sizeof(ussr) / 2; thisNote++) {
-      int noteDuration = 2000 / noteDurations[thisNote];
-      tone(buzzer, ussr[thisNote], noteDuration);
-      int pauseBetweenNotes = noteDuration * 1.30;
-      delay(pauseBetweenNotes);
-      noTone(buzzer);
-    }
+//    for (int thisNote = 0; thisNote < sizeof(ussr) / 2; thisNote++) {
+//      int noteDuration = 2000 / noteDurations[thisNote];
+//      tone(buzzer, ussr[thisNote], noteDuration);
+//      int pauseBetweenNotes = noteDuration * 1.30;
+//      delay(pauseBetweenNotes);
+//      noTone(buzzer);
+//    }
     isEnabled = true;
     digitalWrite(isEnabledPin, HIGH);
     
-    delay(morseFailedDelay);
+    //delay(morseFailedDelay);
   }
   
   byte btn1 = readBtnLedSequence(idxBtn1);
@@ -300,8 +300,8 @@ boolean readMorseCode() {
       lastPressed = millis();
       prevPressed = false;
       last = current;
-      if (gap > morseDotDuration) {
-          char sym = (gap > morseDashDuration ? '-' : '.');
+      if (gap > morseDotDuration / 2) {
+          char sym = (gap > morseDashDuration / 2 ? '-' : '.');
           if (strippedMessage[nextMorseIdx] == sym) {
             nextMorseIdx++;
           } else {
@@ -353,6 +353,7 @@ void resetMorseBeep() {
   noTone(buzzer);
   prevBeep = millis();
   nextCharIdx = 0;
+  pushData(B00000000, B00000000, B00000000);
 }
 
 boolean isBtnPressed(byte idx, boolean returnCurrentState) {
