@@ -216,30 +216,26 @@ unsigned long prevResult = 0;
 unsigned long prevBeep = millis();
 int nextCharIdx = 0;
 boolean isEnabled = false;
+boolean wasMorseCorrect = false;
 void loop() {
-  if (isEnabled && digitalRead(globalEnable) != enableLevel) {
-    resetMorseBeep();
-    pushData(0, 0, 0);
-    isEnabled = false;
-    digitalWrite(isEnabledPin, LOW);
-    
-    delay(100);
-    return;
+  if (
+    (isEnabled && (digitalRead(globalEnable) != enableLevel)) ||
+    (!isEnabled && (digitalRead(globalEnable) == enableLevel))
+  ) {
+    isEnabled = digitalRead(globalEnable) == enableLevel;
+
+    if (isEnabled) {
+      digitalWrite(isEnabledPin, HIGH);
+    } else {
+      resetMorseBeep();
+      pushData(0, 0, 0);
+      digitalWrite(isEnabledPin, LOW);
+    }
   }
 
   if (!isEnabled) {
-    //play music
-//    for (int thisNote = 0; thisNote < sizeof(ussr) / 2; thisNote++) {
-//      int noteDuration = 2000 / noteDurations[thisNote];
-//      tone(buzzer, ussr[thisNote], noteDuration);
-//      int pauseBetweenNotes = noteDuration * 1.30;
-//      delay(pauseBetweenNotes);
-//      noTone(buzzer);
-//    }
-    isEnabled = true;
-    digitalWrite(isEnabledPin, HIGH);
-    
-    //delay(morseFailedDelay);
+    delay(100);
+    return;
   }
   
   byte btn1 = readBtnLedSequence(idxBtn1);
@@ -255,9 +251,23 @@ void loop() {
 
   boolean morseCodeCorrect = readMorseCode();
 
-  if (morseCodeCorrect) {
-    resetMorseBeep();
-  } else {
+  if (wasMorseCorrect != morseCodeCorrect) {
+    if (morseCodeCorrect) {
+      resetMorseBeep();
+      
+      for (int thisNote = 0; thisNote < sizeof(ussr) / 2; thisNote++) {
+        int noteDuration = 2000 / noteDurations[thisNote];
+        tone(buzzer, ussr[thisNote], noteDuration);
+        int pauseBetweenNotes = noteDuration * 1.30;
+        delay(pauseBetweenNotes);
+        noTone(buzzer);
+      }
+    }
+
+    wasMorseCorrect = morseCodeCorrect;
+  }
+
+  if (!morseCodeCorrect) {
     morseBeep();
   }
 
