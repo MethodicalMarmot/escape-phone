@@ -52,8 +52,243 @@ const int shiftClock = 4;   //6 on shifter
 const int buzzer = 10;
 
 const int globalEnable = 11;
-
 const int isEnabledPin = 12;
+const int lockPin = 13;
+
+String strippedMessage = morseMessage;
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(btnPins[idxMorseBtn], INPUT_PULLUP);
+  pinMode(btnPins[idxBtn1], INPUT_PULLUP);
+  pinMode(btnPins[idxBtn2], INPUT_PULLUP);
+  pinMode(btnPins[idxBtn3], INPUT_PULLUP);
+  pinMode(btnPins[idxBtn4], INPUT_PULLUP);
+
+  pinMode(shiftData, OUTPUT);
+  pinMode(shiftLatch, OUTPUT);
+  pinMode(shiftClock, OUTPUT);
+  pinMode(buzzer, OUTPUT);
+
+  pinMode(globalEnable, INPUT_PULLUP);
+  pinMode(isEnabledPin, OUTPUT);
+  pinMode(lockPin, OUTPUT);
+  
+  digitalWrite(isEnabledPin, LOW);
+  resetState();
+
+  strippedMessage.replace(" ", "");
+
+  Serial.println("INIT");
+}
+
+int lastValueBtn[5] = {0, 0, 0, 0, 0};
+unsigned long prevValueBtnMillis[5] = {0, 0, 0, 0, 0};
+int btnLedIdx[4] = {0, 0, 0, 0};
+
+int thisNote = 0;
+
+unsigned long prevResult = 0;
+unsigned long prevBeep = millis();
+int nextCharIdx = 0;
+boolean isEnabled = false;
+boolean wasMorseCorrect = false;
+void loop() {
+  if (
+    (isEnabled && (digitalRead(globalEnable) != enableLevel)) ||
+    (!isEnabled && (digitalRead(globalEnable) == enableLevel))
+  ) {
+    isEnabled = digitalRead(globalEnable) == enableLevel;
+
+    if (isEnabled) {
+      digitalWrite(isEnabledPin, HIGH);
+    } else {
+      resetState();
+      digitalWrite(isEnabledPin, LOW);
+    }
+  }
+
+  if (!isEnabled) {
+    delay(100);
+    return;
+  }
+  
+  byte btn1 = readBtnLedSequence(idxBtn1);
+  byte btn2 = readBtnLedSequence(idxBtn2);
+  byte btn3 = readBtnLedSequence(idxBtn3);
+  byte btn4 = readBtnLedSequence(idxBtn4);
+
+  boolean isYearSequenceCorrect =
+    btn1 == yearCorrectSequence[0] &&
+    btn2 == yearCorrectSequence[1] &&
+    btn3 == yearCorrectSequence[2] &&
+    btn4 == yearCorrectSequence[3];
+
+  boolean morseCodeCorrect = readMorseCode();
+
+  if (wasMorseCorrect != morseCodeCorrect) {
+    if (morseCodeCorrect) {
+      resetState();
+    }
+
+    wasMorseCorrect = morseCodeCorrect;
+  }
+
+  if (!morseCodeCorrect) {
+    morseBeep();
+  } else {
+    playAnthem();
+  }
+
+  unsigned long result = btn1;
+  result = (result << 5) | btn2;
+  result = (result << 5) | btn3;
+  result = (result << 5) | btn4;
+  result = (result << 1) | isYearSequenceCorrect;
+  result = (result << 1) | morseCodeCorrect;
+  result = (result << 1) | successValue(morseCodeCorrect && isYearSequenceCorrect ? 1 : 0);
+  result = (result << 1) | 0;
+
+  if (result != prevResult) {
+    Serial.println("result: "  + String(morseCodeCorrect));
+    Serial.println(result, BIN);
+    Serial.println(result >> 8, BIN);
+    Serial.println(result >> 16, BIN);
+
+    pushData(result, result >> 8, result >> 16);
+    prevResult = result;
+  }
+
+  digitalWrite(lockPin, morseCodeCorrect && isYearSequenceCorrect ? HIGH : LOW);
+}
+unsigned long last = millis();
+unsigned long lastPressed = millis();
+boolean prevPressed = false;
+int nextMorseIdx = 0;
+boolean readMorseCode() {
+  unsigned long current = millis();
+  unsigned long gap = current - last;
+  boolean pressed = isBtnPressed(idxMorseBtn, true);
+
+  if (pressed && !prevPressed) {
+      prevPressed = true;
+      last = current;
+  } else if (!pressed && prevPressed) {
+      if (strippedMessage.length() == nextMorseIdx || (current - lastPressed) > morseFailedDelay) {
+        nextMorseIdx = 0;
+      }
+
+      lastPressed = millis();
+      prevPressed = false;
+      last = current;
+      if (gap > morseDotDuration / 2) {
+          char sym = (gap > morseDashDuration / 2 ? '-' : '.');
+          if (strippedMessage[nextMorseIdx] == sym) {
+            nextMorseIdx++;
+          } else {
+            nextMorseIdx = 0;
+          }
+          Serial.println("sym: " + String(sym) +";" + String(nextMorseIdx) +"; gap: "+ String(gap));
+      }
+  }
+
+  return strippedMessage.length() == nextMorseIdx;
+}
+
+byte readBtnLedSequence(byte idx) {
+  if (isBtnPressed(idx, false)) {
+    btnLedIdx[idx - 1] = yearLedsSequenceLength - 1 == btnLedIdx[idx - 1] ? 0 : btnLedIdx[idx - 1] + 1;
+    
+    //Serial.print("btn " + String(idx) + "; value idx: " + btnLedIdx[idx - 1] + "; output: ");
+    //Serial.println(yearLedsSequence[btnLedIdx[idx - 1]], BIN);
+  }
+  return yearLedsSequence[btnLedIdx[idx - 1]];
+}
+
+long beepDuration = 0;
+void morseBeep() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - prevBeep > beepDuration) {
+    prevBeep = currentMillis;
+    switch (morseMessage[nextCharIdx]) {
+      case '.':
+        tone(buzzer, morseTone);
+        beepDuration = morseDotDuration;
+        break;
+      case '-':
+        tone(buzzer, morseTone);
+        beepDuration = morseDashDuration;
+        break;
+      case ' ':
+      default:
+        noTone(buzzer);
+        beepDuration = morseDotDuration;
+        break;
+    }
+
+    nextCharIdx = morseMessage.length() - 1 == nextCharIdx ? 0 : nextCharIdx + 1;
+  }
+}
+
+void resetState() {
+  noTone(buzzer);
+
+  pushData(B00000000, B00000000, B00000000);
+
+  lastValueBtn[0] = lastValueBtn[1] = lastValueBtn[2] = lastValueBtn[3] = lastValueBtn[4] = 0;
+  prevValueBtnMillis[0] = prevValueBtnMillis[1] = prevValueBtnMillis[2] = prevValueBtnMillis[3] = prevValueBtnMillis[4] = 0;
+  btnLedIdx[0] = btnLedIdx[1] = btnLedIdx[2] = btnLedIdx[3] = 0;
+  
+  prevResult = 0;
+  prevBeep = millis();
+  nextCharIdx = 0;
+  isEnabled = false;
+  wasMorseCorrect = false;
+  prevPressed = false;
+}
+
+boolean isBtnPressed(byte idx, boolean returnCurrentState) {
+  unsigned long currentMillis = millis();
+  unsigned long prevValueMillis = prevValueBtnMillis[idx];
+  int lastValue = lastValueBtn[idx];
+
+  int value = currentMillis - prevValueMillis > debounceTimeout ? digitalRead(btnPins[idx]) : lastValue;
+
+  boolean result = false;
+  if (returnCurrentState) {
+    result = value == btnActiveLevel[idx];
+  } else if (value != lastValue) {
+    result = value == btnActiveLevel[idx];
+    prevValueBtnMillis[idx] = currentMillis;
+    lastValueBtn[idx] = value;
+  }
+  return result;
+}
+
+void pushData(byte ioo, byte oio, byte ooi) {
+  digitalWrite(shiftLatch, LOW);
+  shiftOut(shiftData, shiftClock, LSBFIRST, ioo);
+  shiftOut(shiftData, shiftClock, LSBFIRST, oio);
+  shiftOut(shiftData, shiftClock, LSBFIRST, ooi);
+  digitalWrite(shiftLatch, HIGH);
+}
+
+int lastSucccessChange = millis();
+boolean tmpSuccessValue = true;
+boolean successValue(boolean success) {
+  if (!success) return success;
+
+  int current = millis();
+
+  if ((current - lastSucccessChange) > 1000) {
+    tmpSuccessValue = !tmpSuccessValue;
+    lastSucccessChange = current;
+  }
+
+  return tmpSuccessValue;
+}
+
 
 #define NOTE_B0  31
 #define NOTE_C1  33
@@ -180,229 +415,17 @@ int noteDurations[] = {
 //  4, 6, 16, 4, 4, 2, 4, 4, 1
 };
 
+unsigned long nextNoteMs = millis();
+void playAnthem() {
+//  if (wasMorseCorrect && thisNote >= sizeof(ussr) / 2) {
+//    return;
+//  }
 
-String strippedMessage = morseMessage;
-
-void setup() {
-  Serial.begin(9600);
-
-  pinMode(btnPins[idxMorseBtn], INPUT_PULLUP);
-  pinMode(btnPins[idxBtn1], INPUT_PULLUP);
-  pinMode(btnPins[idxBtn2], INPUT_PULLUP);
-  pinMode(btnPins[idxBtn3], INPUT_PULLUP);
-  pinMode(btnPins[idxBtn4], INPUT_PULLUP);
-
-  pinMode(shiftData, OUTPUT);
-  pinMode(shiftLatch, OUTPUT);
-  pinMode(shiftClock, OUTPUT);
-  pinMode(buzzer, OUTPUT);
-
-  pinMode(globalEnable, INPUT_PULLUP);
-  pinMode(isEnabledPin, OUTPUT);
-  
-  digitalWrite(isEnabledPin, LOW);
-  resetMorseBeep();
-
-  strippedMessage.replace(" ", "");
-
-  Serial.println("INIT");
-}
-
-int lastValueBtn[5] = {0, 0, 0, 0, 0};
-unsigned long prevValueBtnMillis[5] = {0, 0, 0, 0, 0};
-int btnLedIdx[4] = {0, 0, 0, 0};
-
-unsigned long prevResult = 0;
-unsigned long prevBeep = millis();
-int nextCharIdx = 0;
-boolean isEnabled = false;
-boolean wasMorseCorrect = false;
-void loop() {
-  if (
-    (isEnabled && (digitalRead(globalEnable) != enableLevel)) ||
-    (!isEnabled && (digitalRead(globalEnable) == enableLevel))
-  ) {
-    isEnabled = digitalRead(globalEnable) == enableLevel;
-
-    if (isEnabled) {
-      digitalWrite(isEnabledPin, HIGH);
-    } else {
-      resetMorseBeep();
-      pushData(0, 0, 0);
-      digitalWrite(isEnabledPin, LOW);
-    }
-  }
-
-  if (!isEnabled) {
-    delay(100);
-    return;
-  }
-  
-  byte btn1 = readBtnLedSequence(idxBtn1);
-  byte btn2 = readBtnLedSequence(idxBtn2);
-  byte btn3 = readBtnLedSequence(idxBtn3);
-  byte btn4 = readBtnLedSequence(idxBtn4);
-
-  boolean isYearSequenceCorrect =
-    btn1 == yearCorrectSequence[0] &&
-    btn2 == yearCorrectSequence[1] &&
-    btn3 == yearCorrectSequence[2] &&
-    btn4 == yearCorrectSequence[3];
-
-  boolean morseCodeCorrect = readMorseCode();
-
-  if (wasMorseCorrect != morseCodeCorrect) {
-    if (morseCodeCorrect) {
-      resetMorseBeep();
-      
-      for (int thisNote = 0; thisNote < sizeof(ussr) / 2; thisNote++) {
-        int noteDuration = 2000 / noteDurations[thisNote];
-        tone(buzzer, ussr[thisNote], noteDuration);
-        int pauseBetweenNotes = noteDuration * 1.30;
-        delay(pauseBetweenNotes);
-        noTone(buzzer);
-      }
-    }
-
-    wasMorseCorrect = morseCodeCorrect;
-  }
-
-  if (!morseCodeCorrect) {
-    morseBeep();
-  }
-
-  unsigned long result = btn1;
-  result = (result << 5) | btn2;
-  result = (result << 5) | btn3;
-  result = (result << 5) | btn4;
-  result = (result << 1) | isYearSequenceCorrect;
-  result = (result << 1) | morseCodeCorrect;
-  result = (result << 1) | successValue(morseCodeCorrect && isYearSequenceCorrect ? 1 : 0);
-  result = (result << 1) | 0;
-
-  if (result != prevResult) {
-    Serial.println("result: "  + String(morseCodeCorrect));
-    Serial.println(result, BIN);
-    Serial.println(result >> 8, BIN);
-    Serial.println(result >> 16, BIN);
-
-    pushData(result, result >> 8, result >> 16);
-    prevResult = result;
-  }
-}
-unsigned long last = millis();
-unsigned long lastPressed = millis();
-boolean prevPressed = false;
-int nextMorseIdx = 0;
-boolean readMorseCode() {
-  unsigned long current = millis();
-  unsigned long gap = current - last;
-  boolean pressed = isBtnPressed(idxMorseBtn, true);
-
-  if (pressed && !prevPressed) {
-      prevPressed = true;
-      last = current;
-  } else if (!pressed && prevPressed) {
-      if (strippedMessage.length() == nextMorseIdx || (current - lastPressed) > morseFailedDelay) {
-        nextMorseIdx = 0;
-      }
-
-      lastPressed = millis();
-      prevPressed = false;
-      last = current;
-      if (gap > morseDotDuration / 2) {
-          char sym = (gap > morseDashDuration / 2 ? '-' : '.');
-          if (strippedMessage[nextMorseIdx] == sym) {
-            nextMorseIdx++;
-          } else {
-            nextMorseIdx = 0;
-          }
-          Serial.println("sym: " + String(sym) +";" + String(nextMorseIdx) +"; gap: "+ String(gap));
-      }
-  }
-
-  return strippedMessage.length() == nextMorseIdx;
-}
-
-byte readBtnLedSequence(byte idx) {
-  if (isBtnPressed(idx, false)) {
-    btnLedIdx[idx - 1] = yearLedsSequenceLength - 1 == btnLedIdx[idx - 1] ? 0 : btnLedIdx[idx - 1] + 1;
-    
-    //Serial.print("btn " + String(idx) + "; value idx: " + btnLedIdx[idx - 1] + "; output: ");
-    //Serial.println(yearLedsSequence[btnLedIdx[idx - 1]], BIN);
-  }
-  return yearLedsSequence[btnLedIdx[idx - 1]];
-}
-
-long beepDuration = 0;
-void morseBeep() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - prevBeep > beepDuration) {
-    prevBeep = currentMillis;
-    switch (morseMessage[nextCharIdx]) {
-      case '.':
-        tone(buzzer, morseTone);
-        beepDuration = morseDotDuration;
-        break;
-      case '-':
-        tone(buzzer, morseTone);
-        beepDuration = morseDashDuration;
-        break;
-      case ' ':
-      default:
-        noTone(buzzer);
-        beepDuration = morseDotDuration;
-        break;
-    }
-
-    nextCharIdx = morseMessage.length() - 1 == nextCharIdx ? 0 : nextCharIdx + 1;
-  }
-}
-
-void resetMorseBeep() {
-  noTone(buzzer);
-  prevBeep = millis();
-  nextCharIdx = 0;
-  pushData(B00000000, B00000000, B00000000);
-}
-
-boolean isBtnPressed(byte idx, boolean returnCurrentState) {
-  unsigned long currentMillis = millis();
-  unsigned long prevValueMillis = prevValueBtnMillis[idx];
-  int lastValue = lastValueBtn[idx];
-
-  int value = currentMillis - prevValueMillis > debounceTimeout ? digitalRead(btnPins[idx]) : lastValue;
-
-  boolean result = false;
-  if (returnCurrentState) {
-    result = value == btnActiveLevel[idx];
-  } else if (value != lastValue) {
-    result = value == btnActiveLevel[idx];
-    prevValueBtnMillis[idx] = currentMillis;
-    lastValueBtn[idx] = value;
-  }
-  return result;
-}
-
-void pushData(byte ioo, byte oio, byte ooi) {
-  digitalWrite(shiftLatch, LOW);
-  shiftOut(shiftData, shiftClock, LSBFIRST, ioo);
-  shiftOut(shiftData, shiftClock, LSBFIRST, oio);
-  shiftOut(shiftData, shiftClock, LSBFIRST, ooi);
-  digitalWrite(shiftLatch, HIGH);
-}
-
-int lastSucccessChange = millis();
-boolean tmpSuccessValue = true;
-boolean successValue(boolean success) {
-  if (!success) return success;
-
-  int current = millis();
-
-  if ((current - lastSucccessChange) > 1000) {
-    tmpSuccessValue = !tmpSuccessValue;
-    lastSucccessChange = current;
-  }
-
-  return tmpSuccessValue;
+//  for (thisNote = 0; thisNote < sizeof(ussr) / 2; thisNote++) {
+//    int noteDuration = 2000 / noteDurations[thisNote];
+//    tone(buzzer, ussr[thisNote], noteDuration);
+//    int pauseBetweenNotes = noteDuration * 1.30;
+//    delay(pauseBetweenNotes);
+//    noTone(buzzer);
+//  }
 }
