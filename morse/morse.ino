@@ -92,6 +92,11 @@ boolean readMorseCode() {
   return strippedMessage.length() == nextMorseIdx;
 }
 
+void resetMorse() {
+  nextMorseIdx = 0;
+  prevPressed = false;
+}
+
 int lastValueBtn[5] = {0, 0, 0, 0, 0};
 unsigned long prevValueBtnMillis[5] = {0, 0, 0, 0, 0};
 int btnLedIdx[4] = {0, 0, 0, 0};
@@ -103,6 +108,12 @@ byte readBtnLedSequence(byte idx) {
     //Serial.println(yearLedsSequence[btnLedIdx[idx - 1]], BIN);
   }
   return yearLedsSequence[btnLedIdx[idx - 1]];
+}
+
+void resetYear() {
+  lastValueBtn[0] = lastValueBtn[1] = lastValueBtn[2] = lastValueBtn[3] = lastValueBtn[4] = 0;
+  prevValueBtnMillis[0] = prevValueBtnMillis[1] = prevValueBtnMillis[2] = prevValueBtnMillis[3] = prevValueBtnMillis[4] = 0;
+  btnLedIdx[0] = btnLedIdx[1] = btnLedIdx[2] = btnLedIdx[3] = 0;
 }
 
 long beepDuration = 0;
@@ -132,25 +143,14 @@ void morseBeep() {
   }
 }
 
-void resetBuzzer() {
+void resetMorseBeep() {
   noTone(buzzer);
   prevBeep = millis();
   nextCharIdx = 0;
 }
 
-void resetMorse() {
-  nextMorseIdx = 0;
-  prevPressed = false;
-}
-
 void resetLeds() {
   pushData(B00000000, B00000000, B00000000);
-}
-
-void resetYear() {
-  lastValueBtn[0] = lastValueBtn[1] = lastValueBtn[2] = lastValueBtn[3] = lastValueBtn[4] = 0;
-  prevValueBtnMillis[0] = prevValueBtnMillis[1] = prevValueBtnMillis[2] = prevValueBtnMillis[3] = prevValueBtnMillis[4] = 0;
-  btnLedIdx[0] = btnLedIdx[1] = btnLedIdx[2] = btnLedIdx[3] = 0;
 }
 
 boolean isBtnPressed(byte idx, boolean returnCurrentState) {
@@ -300,7 +300,7 @@ void setup() {
   pinMode(lockPin, OUTPUT);
   
   digitalWrite(isEnabledPin, LOW);
-  pushData(0, 0, 0);
+  resetLeds();
 
   strippedMessage.replace(" ", "");
   resetCelebration();
@@ -321,7 +321,7 @@ void loop() {
       digitalWrite(isEnabledPin, HIGH);
     } else {
 
-      resetBuzzer();
+      resetMorseBeep();
       resetMorse();
       resetLeds();
       resetYear();
@@ -354,6 +354,7 @@ void loop() {
   unsigned long result;
 
   if (allCorrect) {
+    playAnthem();
     result = celebration();
     digitalWrite(lockPin, HIGH);
   } else {
@@ -369,14 +370,9 @@ void loop() {
     digitalWrite(lockPin, LOW);
 
     if (!morseCodeCorrect) {
+      resetAnthem();
       morseBeep();
     }
-  }
-
-  if (morseCodeCorrect) {
-    playAnthem();
-  } else {
-    resetAnthem();
   }
 
   if (result != prevResult) {
