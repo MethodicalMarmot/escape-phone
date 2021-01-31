@@ -238,7 +238,7 @@ const byte celebrationSequence[celebrationSequenceLength] = {
   B10000,   // 9
 };
 
-const int changeDelay = 100;
+const int changeDelay = 1000;
 
 int celebrationRow1Idx;
 int celebrationRow2Idx;
