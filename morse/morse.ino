@@ -376,6 +376,8 @@ void loop() {
     if (!morseCodeCorrect) {
       resetAnthem();
       morseBeep();
+    } else {
+      resetMorseBeep();
     }
   }
 
