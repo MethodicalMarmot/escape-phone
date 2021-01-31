@@ -1,5 +1,6 @@
 // settings
 const int debounceTimeout = 10;
+const int celebrationChangeDelay = 1000;
 const int enableLevel = LOW;
 const int morseFailedDelay = 1000;
 const int morseTone = 450;
@@ -238,8 +239,6 @@ const byte celebrationSequence[celebrationSequenceLength] = {
   B10000,   // 9
 };
 
-const int changeDelay = 1000;
-
 int celebrationRow1Idx;
 int celebrationRow2Idx;
 int celebrationRow3Idx;
@@ -250,7 +249,7 @@ unsigned long nextChange = millis();
 unsigned long celebration() {
   unsigned long current = millis();
   if (current > nextChange) {
-    nextChange = current + changeDelay;
+    nextChange = current + celebrationChangeDelay;
 
     celebrationRow1Idx = celebrationRow1Idx > celebrationSequenceLength - 1 ? 0 : celebrationRow1Idx + 1;
     celebrationRow2Idx = celebrationRow2Idx > celebrationSequenceLength - 1 ? 0 : celebrationRow2Idx + 1;
