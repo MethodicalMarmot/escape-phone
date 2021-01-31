@@ -2,6 +2,8 @@
 const int debounceTimeout = 10;
 const int celebrationChangeDelay = 1000;
 const int enableLevel = LOW;
+const int isEnableLevel = HIGH;
+const int lockedLevel = LOW;
 const int morseFailedDelay = 1000;
 const int morseTone = 450;
 const int morseDotDuration = 100;
@@ -299,7 +301,8 @@ void setup() {
   pinMode(isEnabledPin, OUTPUT);
   pinMode(lockPin, OUTPUT);
   
-  digitalWrite(isEnabledPin, LOW);
+  digitalWrite(isEnabledPin, isEnableLevel == HIGH ? LOW : isEnableLevel);
+  digitalWrite(lockPin, lockedLevel);
   resetLeds();
 
   strippedMessage.replace(" ", "");
@@ -318,7 +321,7 @@ void loop() {
     isEnabled = digitalRead(globalEnable) == enableLevel;
 
     if (isEnabled) {
-      digitalWrite(isEnabledPin, HIGH);
+      digitalWrite(isEnabledPin, isEnableLevel);
     } else {
 
       resetMorseBeep();
@@ -327,7 +330,8 @@ void loop() {
       resetYear();
       resetAnthem();
       resetCelebration();
-      digitalWrite(isEnabledPin, LOW);
+      digitalWrite(isEnabledPin, isEnableLevel == HIGH ? LOW : isEnableLevel);
+      digitalWrite(lockPin, lockedLevel);
     }
   }
 
@@ -356,7 +360,7 @@ void loop() {
   if (allCorrect) {
     playAnthem();
     result = celebration();
-    digitalWrite(lockPin, HIGH);
+    digitalWrite(lockPin, lockedLevel == HIGH ? LOW : HIGH);
   } else {
     result = btn1;
     result = (result << 5) | btn2;
@@ -367,7 +371,7 @@ void loop() {
     result = (result << 1) | allCorrect;
     result = (result << 1) | 0;
 
-    digitalWrite(lockPin, LOW);
+    digitalWrite(lockPin, lockedLevel);
 
     if (!morseCodeCorrect) {
       resetAnthem();
