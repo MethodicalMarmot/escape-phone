@@ -1,65 +1,37 @@
-#include <SD.h>
-#include <TMRpcm.h>
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
 
 const int debounceTimeout = 100;
 const int enableActiveState = LOW;
-char* filename = "000.wav";
+const int track = 1;
 
 const byte enablePin = 2;
 const byte tvPin = 3;
 
-const byte phonePin = 9;
-const byte chipSelect = 10;
-TMRpcm tmrpcm;
-
-// set up variables using the SD utility library functions:
-Sd2Card card;
-SdVolume volume;
-SdFile root;
+SoftwareSerial mySoftwareSerial(10, 11); // RX, TX
+DFRobotDFPlayerMini myDFPlayer;
 
 void setup() {
   Serial.begin(9600);
+  mySoftwareSerial.begin(9600);
+  
+  delay(1000);
 
-  pinMode(chipSelect, OUTPUT); // change this to 53 on a mega  // don't follow this!!
-  digitalWrite(chipSelect, HIGH); // Add this line
-
-  if (!card.init(SPI_HALF_SPEED, chipSelect)) {
-    Serial.println("initialization failed");
-    return;
-  } else {
-    Serial.println("Wiring is correct and a card is present.");
+  if (!myDFPlayer.begin(mySoftwareSerial)) {
+    Serial.println("Unable to begin:");
+    Serial.println("1.Please recheck the connection!");
+    Serial.println("2.Please insert the SD card!");
+    while(true);
   }
+  Serial.println("DFPlayer online");
 
-  // print the type of card
-  Serial.print("\nCard type: ");
-  switch (card.type()) {
-    case SD_CARD_TYPE_SD1:
-      Serial.println("SD1");
-      break;
-    case SD_CARD_TYPE_SD2:
-      Serial.println("SD2");
-      break;
-    case SD_CARD_TYPE_SDHC:
-      Serial.println("SDHC");
-      break;
-    default:
-      Serial.println("Unknown");
-  }
+  myDFPlayer.setTimeOut(500); //Set serial communictaion time out 500ms
 
-  // Now we will try to open the 'volume'/'partition' - it should be FAT16 or FAT32
-  if (!volume.init(card)) {
-    Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
-    return;
-  }
-
-  if (!SD.begin(chipSelect)) {
-    return;
-  }
-
-  tmrpcm.speakerPin = phonePin;
-  tmrpcm.setVolume(5);
-  tmrpcm.loop(0);
-  tmrpcm.quality(1);
+  myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
+  myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+  myDFPlayer.enableLoop();
+  myDFPlayer.volume(20);
 
   pinMode(enablePin, INPUT_PULLUP);
   pinMode(tvPin, OUTPUT);
@@ -81,18 +53,13 @@ void loop() {
     lastValue = value;
 
     if (state) {
-      tmrpcm.play(filename);
+      myDFPlayer.loop(track);
       digitalWrite(tvPin, HIGH);
       Serial.println("ENABLED");
     } else {
-      tmrpcm.stopPlayback();
+      myDFPlayer.disableLoopAll();
       digitalWrite(tvPin, LOW);
       Serial.println("DISABLED");
     }
-  }
-
-  if (state && !tmrpcm.isPlaying()) {
-    tmrpcm.play(filename);
-    Serial.println("REPEAT");
   }
 }
