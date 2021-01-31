@@ -4,12 +4,12 @@
 
 const int debounceTimeout = 100;
 const int enableActiveState = LOW;
-const int track = 0;
+const int track = 1;
 
 const byte enablePin = 2;
 const byte tvPin = 3;
 
-SoftwareSerial mySoftwareSerial(12, 11); // RX, TX
+SoftwareSerial mySoftwareSerial(10, 11); // RX, TX
 DFRobotDFPlayerMini myDFPlayer;
 
 void setup() {
