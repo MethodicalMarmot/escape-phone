@@ -19,7 +19,10 @@ SdFile root;
 
 void setup() {
   Serial.begin(9600);
-  
+
+  pinMode(chipSelect, OUTPUT); // change this to 53 on a mega  // don't follow this!!
+  digitalWrite(chipSelect, HIGH); // Add this line
+
   if (!card.init(SPI_HALF_SPEED, chipSelect)) {
     Serial.println("initialization failed");
     return;
@@ -54,7 +57,7 @@ void setup() {
   }
 
   tmrpcm.speakerPin = phonePin;
-  tmrpcm.setVolume(7);
+  tmrpcm.setVolume(5);
   tmrpcm.loop(0);
   tmrpcm.quality(1);
 
