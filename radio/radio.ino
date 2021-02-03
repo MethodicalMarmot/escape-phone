@@ -4,6 +4,7 @@
 
 const int debounceTimeout = 100;
 const int enableActiveState = LOW;
+const int relayActiveState = LOW;
 const int track = 1;
 
 const byte enablePin = 2;
@@ -54,11 +55,11 @@ void loop() {
 
     if (state) {
       myDFPlayer.loop(track);
-      digitalWrite(tvPin, HIGH);
+      digitalWrite(tvPin, relayActiveState);
       Serial.println("ENABLED");
     } else {
       myDFPlayer.disableLoopAll();
-      digitalWrite(tvPin, LOW);
+      digitalWrite(tvPin, relayActiveState == HIGH ? LOW : HIGH);
       Serial.println("DISABLED");
     }
   }
