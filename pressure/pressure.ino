@@ -4,8 +4,6 @@ const int pressure3Pin = A2;
 
 const int lockPin = 13;
 
-const int pressureResolutionFactor = 10;
-
 const int pressure1Target = 3;
 const int pressure2Target = 4;
 const int pressure3Target = 6;
