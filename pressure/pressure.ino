@@ -4,9 +4,9 @@ const int pressure3Pin = A2;
 
 const int lockPin = 13;
 
-const int pressure1Target = 3;
-const int pressure2Target = 4;
-const int pressure3Target = 6;
+const int pressure1Target = 3;	// psi
+const int pressure2Target = 4;  // psi
+const int pressure3Target = 6;  // psi
 
 void setup() {
   Serial.begin(9600);
