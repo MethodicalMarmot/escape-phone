@@ -1,3 +1,5 @@
+const int triggerDelay = 500;
+
 const int mag1 = 2;
 const int mag2 = 3;
 const int mag3 = 4;
@@ -11,8 +13,6 @@ const int sequence[3] = {
   mag2, mag1, mag3
 };
 const int sequenceSize = sizeof(sequence) / sizeof(sequence[0]);
-
-const int triggerDelay = 500;
 
 void setup() {
   Serial.begin(9600);
