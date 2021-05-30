@@ -29,8 +29,8 @@ char keymap[numRows][numCols] =
 };
 
 //Code that shows the the keypad connections to the arduino terminals
-byte rowPins[numRows] = {9, 8, 7, 6}; //Rows 0 to 3
-byte colPins[numCols] = {5, 4, 3}; //Columns 0 to 3
+byte rowPins[numRows] = {9, 8, 7, 6};       //Rows 0 to 3
+byte colPins[numCols] = {5, 4, 3};          //Columns 0 to 3
 
 //initializes an instance of the Keypad class
 Keypad digitpad = Keypad(makeKeymap(keymap), rowPins, colPins, numRows, numCols);
@@ -95,9 +95,9 @@ void loop()
 
   if (!unlocked && currentMillis - lastDisplayTimeChanged > displayTimeInterval) {
     long hour = displayTimeSec / 60 / 60;
-    long mins = (displayTimeSec - (hour * 60 * 60)) / 60;
-    long sec = (displayTimeSec - (hour * 60 * 60 + mins * 60));
-    display(hour, mins, sec);
+    long min = (displayTimeSec - (hour * 60 * 60)) / 60;
+    long sec = (displayTimeSec - (hour * 60 * 60 + min * 60));
+    display(hour, min, sec);
     displayTimeSec -= 1;
     lastDisplayTimeChanged = currentMillis;
   }
@@ -118,17 +118,17 @@ void reset() {
   digitalWrite(lockPin, lockedState);
 }
 
-void display(long hour, long mins, long sec) {
+void display(long hour, long min, long sec) {
   Serial.print(padZero(hour));
   Serial.print(":");
-  Serial.print(padZero(mins));
+  Serial.print(padZero(min));
   Serial.print(":");
   Serial.println(padZero(sec));
 
   hourDisplay.print(hour);      //TODO pad with zero
 
-  minSecDisplay.print(mins*100 + sec);
-  if (mins < 10) {
+  minSecDisplay.print(min*100 + sec);
+  if (min < 10) {
     minSecDisplay.writeDigitNum(1, 0);
   }
   if (sec < 10) {
